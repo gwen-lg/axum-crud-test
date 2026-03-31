@@ -1,18 +1,36 @@
-use crate::business;
+use serde::{Serialize, Serializer};
+
+use crate::business::{self, shop::ShopProduct};
+
+#[derive(Debug, Serialize)]
+struct ShopProductSer<'a> {
+  product_id: &'a str,
+  coins: i32,
+}
+impl<'a> From<&'a ShopProduct> for ShopProductSer<'a> {
+  fn from(product: &'a ShopProduct) -> Self {
+    Self {
+      product_id: product.product_id.as_str(),
+      coins: product.coins,
+    }
+  }
+}
+
+struct ShopProducts<'a> {
+  products: &'a [business::shop::ShopProduct],
+}
+impl Serialize for ShopProducts<'_> {
+  fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+  where
+    S: Serializer,
+  {
+    serializer.collect_seq(self.products.iter().map(ShopProductSer::from))
+  }
+}
 
 pub fn to_json(
   products: &[business::shop::ShopProduct],
-) -> business::result::Result<Vec<serde_json::value::Value>> {
-  let mut json_products: Vec<serde_json::value::Value> = Vec::with_capacity(4);
-
-  for p in products.iter() {
-    let mut m: std::collections::HashMap<&str, serde_json::value::Value> =
-      std::collections::HashMap::new();
-    m.insert("product-id", serde_json::to_value(&p.product_id)?);
-    m.insert("coins", serde_json::to_value(p.coins)?);
-
-    json_products.push(serde_json::to_value(m)?);
-  }
-
-  return Ok(json_products);
+) -> Result<String, serde_json::Error> {
+  let products = ShopProducts { products };
+  serde_json::to_string(&products)
 }
