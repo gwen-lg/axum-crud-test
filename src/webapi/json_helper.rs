@@ -16,21 +16,13 @@ impl<'a> From<&'a ShopProduct> for ShopProductSer<'a> {
   }
 }
 
-struct ShopProducts<'a> {
-  products: &'a [business::shop::ShopProduct],
-}
-impl Serialize for ShopProducts<'_> {
-  fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-  where
-    S: Serializer,
-  {
-    serializer.collect_seq(self.products.iter().map(ShopProductSer::from))
-  }
-}
-
 pub fn to_json(
   products: &[business::shop::ShopProduct],
 ) -> Result<String, serde_json::Error> {
-  let products = ShopProducts { products };
-  serde_json::to_string(&products)
+  let mut products_json = Vec::new();
+  let mut products_serializer = serde_json::Serializer::new(&mut products_json);
+  products_serializer.collect_seq(products.iter().map(ShopProductSer::from))?;
+  let products = String::from_utf8(products_json)
+    .expect("invalid utf8 in json serialization");
+  Ok(products)
 }
