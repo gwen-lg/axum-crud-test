@@ -1,6 +1,7 @@
+use serde::Serialize;
+
 use crate::business;
 use crate::webapi::auth;
-use crate::webapi::json_helper;
 
 #[derive(Clone)]
 pub struct ServiceState {
@@ -37,13 +38,32 @@ async fn update(
   return Ok(());
 }
 
+#[derive(Debug, Serialize)]
+struct ShopProduct {
+  product_id: String,
+  coins: i32,
+}
+
+struct Products(Vec<ShopProduct>);
+
+impl Extend<(String, i32)> for Products {
+  fn extend<T: IntoIterator<Item = (String, i32)>>(&mut self, iter: T) {
+    self
+      .0
+      .extend(iter.into_iter().map(|(id, coins)| ShopProduct {
+        product_id: id,
+        coins,
+      }))
+  }
+}
+
 /// List all shop products.
 async fn list(
   state_handle: axum::extract::State<ServiceState>,
 ) -> business::result::Result<String> {
-  return Ok(serde_json::to_string(&json_helper::to_json(
-    &state_handle.0.shop.list().await?,
-  )?)?);
+  let mut product_list = Products(Vec::<ShopProduct>::with_capacity(32));
+  state_handle.0.shop.fill_list(&mut product_list).await?;
+  return Ok(serde_json::to_string(&product_list.0)?);
 }
 
 /// Configure all routes for this service.

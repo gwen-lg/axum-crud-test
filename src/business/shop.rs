@@ -20,11 +20,6 @@ pub async fn run_migration(
   return Ok(());
 }
 
-pub struct ShopProduct {
-  pub product_id: String,
-  pub coins: i32,
-}
-
 pub struct Shop {
   m_db: deadpool_postgres::Pool,
 }
@@ -64,20 +59,17 @@ impl Shop {
   }
 
   /// Returns a vector of shop products.
-  pub async fn list(&self) -> result::Result<Vec<ShopProduct>> {
-    return Ok(
-      self
-        .m_db
-        .get()
-        .await?
-        .query("select * from shop", &[])
-        .await?
-        .into_iter()
-        .map(|row| ShopProduct {
-          product_id: row.get(0),
-          coins: row.get(1),
-        })
-        .collect(),
-    );
+  pub async fn fill_list<Ext>(&self, test: &mut Ext) -> result::Result<()>
+  where
+    Ext: Extend<(String, i32)>,
+  {
+    let rows = self
+      .m_db
+      .get()
+      .await?
+      .query("select id, coins from shop", &[])
+      .await?;
+    test.extend(rows.into_iter().map(|row| (row.get(0), row.get(1))));
+    return Ok(());
   }
 }
