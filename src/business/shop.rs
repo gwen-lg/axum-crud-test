@@ -1,3 +1,6 @@
+use futures_util::{Stream, StreamExt as _};
+use tokio_postgres::Row;
+
 use super::*;
 
 // The shop lists all products that can be purchased via the store.
@@ -58,18 +61,27 @@ impl Shop {
     return Ok(());
   }
 
-  /// Returns a vector of shop products.
-  pub async fn fill_list<Ext>(&self, test: &mut Ext) -> result::Result<()>
-  where
-    Ext: Extend<(String, i32)>,
-  {
-    let rows = self
+  /// Returns a stream on shop products.
+  pub async fn list(
+    &self,
+  ) -> Result<
+    impl Stream<Item = Result<(String, i32), tokio_postgres::Error>>,
+    error::Error,
+  > {
+    // define row data extraction
+    fn row_to_product_shop(
+      row: Result<Row, tokio_postgres::Error>,
+    ) -> Result<(String, i32), tokio_postgres::Error> {
+      row.map(|row| (row.get(0), row.get(1)))
+    }
+
+    let row_stream = self
       .m_db
       .get()
       .await?
-      .query("select id, coins from shop", &[])
+      .query_raw::<_, _, &[&str; 0]>("select id, coins from shop", &[])
       .await?;
-    test.extend(rows.into_iter().map(|row| (row.get(0), row.get(1))));
-    return Ok(());
+
+    Ok(row_stream.map(row_to_product_shop))
   }
 }

@@ -1,3 +1,4 @@
+use futures_util::{StreamExt, TryStreamExt as _};
 use serde::Serialize;
 
 use crate::business;
@@ -43,17 +44,9 @@ struct ShopProduct {
   product_id: String,
   coins: i32,
 }
-
-struct Products(Vec<ShopProduct>);
-
-impl Extend<(String, i32)> for Products {
-  fn extend<T: IntoIterator<Item = (String, i32)>>(&mut self, iter: T) {
-    self
-      .0
-      .extend(iter.into_iter().map(|(id, coins)| ShopProduct {
-        product_id: id,
-        coins,
-      }))
+impl From<(String, i32)> for ShopProduct {
+  fn from((product_id, coins): (String, i32)) -> Self {
+    Self { product_id, coins }
   }
 }
 
@@ -61,9 +54,13 @@ impl Extend<(String, i32)> for Products {
 async fn list(
   state_handle: axum::extract::State<ServiceState>,
 ) -> business::result::Result<String> {
-  let mut product_list = Products(Vec::<ShopProduct>::with_capacity(32));
-  state_handle.0.shop.fill_list(&mut product_list).await?;
-  return Ok(serde_json::to_string(&product_list.0)?);
+  let products_stream = state_handle.0.shop.list().await?;
+  let products = products_stream
+    .map(|product| product.map(ShopProduct::from))
+    .try_collect::<Vec<ShopProduct>>()
+    .await?;
+
+  return Ok(serde_json::to_string(&products)?);
 }
 
 /// Configure all routes for this service.
